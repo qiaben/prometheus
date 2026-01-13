@@ -1,0 +1,55 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - ../../base
+
+patches:
+  - patch: |-
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: prometheus
+        namespace: monitoring
+      spec:
+        ingressClassName: nginx-private
+        tls:
+        - hosts:
+          - prometheus.apps-stage.in.hinisoft.com
+          secretName: prometheus-tls-stage
+        rules:
+        - host: prometheus.apps-stage.in.hinisoft.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: prometheus
+                  port:
+                    number: 9090
+    target:
+      kind: Ingress
+      name: prometheus
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: prometheus-config
+        namespace: monitoring
+      data:
+        prometheus.yml: |
+          global:
+            scrape_interval: 15s
+            evaluation_interval: 15s
+            external_labels:
+              cluster: 'kube-stage'
+              environment: 'stage'
+    target:
+      kind: ConfigMap
+      name: prometheus-config
+
+namePrefix: stage-
+nameSuffix: ""

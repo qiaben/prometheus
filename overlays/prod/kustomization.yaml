@@ -1,0 +1,97 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - ../../base
+
+patches:
+  - patch: |-
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: prometheus
+        namespace: monitoring
+      spec:
+        ingressClassName: nginx-public
+        tls:
+        - hosts:
+          - prometheus.apps-prod.in.hinisoft.com
+          secretName: prometheus-tls-prod
+        rules:
+        - host: prometheus.apps-prod.in.hinisoft.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: prometheus
+                  port:
+                    number: 9090
+    target:
+      kind: Ingress
+      name: prometheus
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: prometheus
+        namespace: monitoring
+      spec:
+        replicas: 2
+        template:
+          spec:
+            containers:
+            - name: prometheus
+              args:
+                - '--config.file=/etc/prometheus/prometheus.yml'
+                - '--storage.tsdb.path=/prometheus'
+                - '--storage.tsdb.retention.time=90d'
+                - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+                - '--web.console.templates=/usr/share/prometheus/consoles'
+                - '--web.enable-lifecycle'
+              resources:
+                limits:
+                  cpu: 2000m
+                  memory: 4Gi
+                requests:
+                  cpu: 1000m
+                  memory: 2Gi
+    target:
+      kind: Deployment
+      name: prometheus
+  - patch: |-
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: prometheus-pvc
+        namespace: monitoring
+      spec:
+        resources:
+          requests:
+            storage: 100Gi
+    target:
+      kind: PersistentVolumeClaim
+      name: prometheus-pvc
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: prometheus-config
+        namespace: monitoring
+      data:
+        prometheus.yml: |
+          global:
+            scrape_interval: 15s
+            evaluation_interval: 15s
+            external_labels:
+              cluster: 'kube-prod'
+              environment: 'production'
+    target:
+      kind: ConfigMap
+      name: prometheus-config
+
+namePrefix: prod-
+nameSuffix: ""
